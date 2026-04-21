@@ -8,7 +8,7 @@ const axios = require('axios/dist/node/axios.cjs'); // node
 // Inject env file
 const dotenv = require('dotenv').config();
 const bcrypt = require("bcrypt");
-const saltRounds = 10;
+const saltRounds = 16;
 
 const instance = axios.create({
   baseURL: "https://api.baserow.io",
@@ -45,9 +45,15 @@ app.listen(port, () => {
     console.log(`Example app listening on port: ${port}`);
 })
 
-app.post('/user', (req, res) => {
-    if (!req.body) return res.sendStatus(400)
-    if(!req.body.Password) return res.sendStatus(400);
+app.post('/user', async (req, res) => {
+    if (!req.body) return res.sendStatus(400);
+    if(
+        !req.body.Password ||
+        !req.body.Email ||
+        !req.body.Name
+    ) {
+        return res.sendStatus(400);
+    }
 
     const password = req.body.Password;
 
@@ -58,8 +64,8 @@ app.post('/user', (req, res) => {
                 url: "api/database/rows/table/941203/?user_field_names=true",
                 method: 'post',
                 data: {
-                    "Name": "Kenji",
-                    "Email": "Kenji@Test.com",
+                    "Name": req.body.Name,
+                    "Email": req.body.Email,
                     "Role": 5956549,
                     "Password": hash
                 }
@@ -74,6 +80,29 @@ app.post('/user', (req, res) => {
     });
 })
 
-// app.post('/authenticate', (req, res) => {
+app.post('/authenticate', async (req, res) => {
+    if (!req.body) return res.sendStatus(400);
 
-// })
+    const password = req.body.Password;
+
+    const query = await instance({
+        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${req.body.Email}`,
+        method: 'get'
+    })
+
+    if(query?.data?.results && query.data.results.length) {
+        const user = query.data.results[0];
+        const result = await bcrypt.compare(password, user.Password);
+
+        if(result) {
+            return res.status(200).json(
+                {
+                    id: user.id,
+                    token: "LolololToken",
+                }
+            );
+        } else {
+            return res.sendStatus(401);
+        }
+    }
+})
