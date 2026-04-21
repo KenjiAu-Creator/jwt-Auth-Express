@@ -9,6 +9,7 @@ const axios = require('axios/dist/node/axios.cjs'); // node
 const dotenv = require('dotenv').config();
 const bcrypt = require("bcrypt");
 const saltRounds = 16;
+const jwt = require('jsonwebtoken');
 
 const instance = axios.create({
   baseURL: "https://api.baserow.io",
@@ -45,7 +46,7 @@ app.listen(port, () => {
     console.log(`Example app listening on port: ${port}`);
 })
 
-app.post('/user', async (req, res) => {
+app.post('/register', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
     if(
         !req.body.Password ||
