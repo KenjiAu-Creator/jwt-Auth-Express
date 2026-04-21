@@ -1,10 +1,14 @@
 const express = require('express');
 const app = express();
 const port = 3000;
+// Adding middleware to parse application/json
+app.use(express.json());
 
 const axios = require('axios/dist/node/axios.cjs'); // node
 // Inject env file
 const dotenv = require('dotenv').config();
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const instance = axios.create({
   baseURL: "https://api.baserow.io",
@@ -41,3 +45,35 @@ app.listen(port, () => {
     console.log(`Example app listening on port: ${port}`);
 })
 
+app.post('/user', (req, res) => {
+    if (!req.body) return res.sendStatus(400)
+    if(!req.body.Password) return res.sendStatus(400);
+
+    const password = req.body.Password;
+
+    bcrypt.genSalt(saltRounds, function(err, salt) {
+        bcrypt.hash(password, salt, function(err, hash) {
+            // Posting to create a new user
+            instance({
+                url: "api/database/rows/table/941203/?user_field_names=true",
+                method: 'post',
+                data: {
+                    "Name": "Kenji",
+                    "Email": "Kenji@Test.com",
+                    "Role": 5956549,
+                    "Password": hash
+                }
+            }).then(function (response) {
+                if(response.data) {
+                    return res.sendStatus(200);
+                } else {
+                    return res.sendStatus(400);
+                }
+            })
+        });
+    });
+})
+
+// app.post('/authenticate', (req, res) => {
+
+// })
