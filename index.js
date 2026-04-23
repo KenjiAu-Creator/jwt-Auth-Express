@@ -82,6 +82,7 @@ app.post('/register', async (req, res) => {
 })
 
 app.post('/authenticate', async (req, res) => {
+    // Check to make sure the body has email and password
     if (!req.body) return res.sendStatus(400);
 
     const password = req.body.Password;
@@ -96,10 +97,18 @@ app.post('/authenticate', async (req, res) => {
         const result = await bcrypt.compare(password, user.Password);
 
         if(result) {
+            const accessToken = jwt.sign(
+                {
+                    data: { id: user.id},
+                },
+                process.env.AUTH_SECRET,
+                { expiresIn: process.env.AUTH_SECRET_EXPIRES_IN }
+            );
+
             return res.status(200).json(
                 {
                     id: user.id,
-                    token: "LolololToken",
+                    token: accessToken,
                 }
             );
         } else {
