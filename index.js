@@ -10,6 +10,7 @@ const dotenv = require('dotenv').config();
 const bcrypt = require("bcrypt");
 const saltRounds = 16;
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 
 const instance = axios.create({
   baseURL: "https://api.baserow.io",
@@ -18,32 +19,53 @@ const instance = axios.create({
   }
 })
 
+app.use(cookieParser());
+
 app.get('/', (req, res) => {
     res.send('Hello World!');
 })
 
+app.listen(port, () => {
+    console.log(`Example app listening on port: ${port}`);
+})
+
 app.get('/users', (req, res) => {
     // Testing fetching users
-    instance({
-        url:"api/database/fields/table/941203/?user_field_names=true",
-        method: 'get'
-    }).then(function (response) {
-        res.send(response.data);
-    })
+    const cookieToken = req.cookies.token;
+    if(!cookieToken) return res.sendStatus(401);
+
+    // Validate cookie
+    const decoded = jwt.verify(cookieToken, process.env.AUTH_SECRET);
+    if(decoded) {
+        instance({
+            url:"api/database/fields/table/941203/?user_field_names=true",
+            method: 'get'
+        }).then((response) => {
+            return res.send(response.data);
+        })
+    } else {
+        return res.sendStatus(401);
+    }
 })
 
 app.get('/user', (req, res) => {
     // Testing fetching user
-    instance({
-        url:"api/database/rows/table/941203/1/",
-        method: 'get'
-    }).then(function (response) {
-        res.send(response.data);
-    })
-})
+    const cookieToken = req.cookies.token;
+    if(!cookieToken) return res.sendStatus(401);
 
-app.listen(port, () => {
-    console.log(`Example app listening on port: ${port}`);
+    // Validate cookie
+    const decoded = jwt.verify(cookieToken, process.env.AUTH_SECRET);
+
+    if(decoded) {
+        instance({
+            url:"api/database/rows/table/941203/1/",
+            method: 'get'
+        }).then((response) => {
+            return res.send(response.data);
+        })
+    } else {
+        return res.sendStatus(401);
+    }
 })
 
 app.post('/register', async (req, res) => {
@@ -55,6 +77,8 @@ app.post('/register', async (req, res) => {
     ) {
         return res.sendStatus(400);
     }
+
+    // Sanitize the input before proceeding as well
 
     const password = req.body.Password;
 
@@ -70,7 +94,7 @@ app.post('/register', async (req, res) => {
                     "Role": 5956549,
                     "Password": hash
                 }
-            }).then(function (response) {
+            }).then((response) => {
                 if(response.data) {
                     return res.sendStatus(200);
                 } else {
@@ -83,12 +107,14 @@ app.post('/register', async (req, res) => {
 
 app.post('/authenticate', async (req, res) => {
     // Check to make sure the body has email and password
-    if (!req.body) return res.sendStatus(400);
+    if (!req.body.Password || !req.body.Email) return res.sendStatus(400);
 
+    // We should sanitize the password and email as well first
     const password = req.body.Password;
+    const email = req.body.Email;
 
     const query = await instance({
-        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${req.body.Email}`,
+        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${email}`,
         method: 'get'
     })
 
@@ -104,6 +130,13 @@ app.post('/authenticate', async (req, res) => {
                 process.env.AUTH_SECRET,
                 { expiresIn: process.env.AUTH_SECRET_EXPIRES_IN }
             );
+
+            res.cookie('token', accessToken, {
+                httpOnly: true,  // Prevents JS access (XSS protection)
+                secure: true,    // Send only over HTTPS
+                sameSite: 'Lax', // Protects against some CSRF
+                maxAge: process.env.AUTH_SECRET_EXPIRES_IN  // 1 hour in milliseconds
+            });
 
             return res.status(200).json(
                 {
