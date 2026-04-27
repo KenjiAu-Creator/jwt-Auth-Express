@@ -12,6 +12,8 @@ const saltRounds = 16;
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser')
 
+const validator = require("validator");
+
 const instance = axios.create({
   baseURL: "https://api.baserow.io",
   headers: {
@@ -113,8 +115,17 @@ app.post('/authenticate', async (req, res) => {
     const password = req.body.Password;
     const email = req.body.Email;
 
+    const validEmail = validator.isEmail(email);
+    if(!validEmail) {
+        return res.status(400).json({
+            message: "Invalid email address"
+        });
+    }
+
+    const normalizedEmail = validator.normalizeEmail(email);
+
     const query = await instance({
-        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${email}`,
+        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${normalizedEmail}`,
         method: 'get'
     })
 
