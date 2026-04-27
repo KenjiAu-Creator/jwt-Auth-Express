@@ -79,32 +79,53 @@ app.post('/register', async (req, res) => {
     ) {
         return res.sendStatus(400);
     }
-
     // Sanitize the input before proceeding as well
-
+    const email = req.body.Email;
     const password = req.body.Password;
+    const validEmail = validator.isEmail(email);
 
-    bcrypt.genSalt(saltRounds, function(err, salt) {
-        bcrypt.hash(password, salt, function(err, hash) {
-            // Posting to create a new user
-            instance({
-                url: "api/database/rows/table/941203/?user_field_names=true",
-                method: 'post',
-                data: {
-                    "Name": req.body.Name,
-                    "Email": req.body.Email,
-                    "Role": 5956549,
-                    "Password": hash
-                }
-            }).then((response) => {
-                if(response.data) {
-                    return res.sendStatus(200);
-                } else {
-                    return res.sendStatus(400);
-                }
-            })
+    if(!validEmail) {
+        return res.status(400).json({
+            message: "Invalid email address"
+        })
+    }
+
+    const normalizedEmail = validator.normalizeEmail(email).toLocaleLowerCase();
+
+    // Check there isn't already an account with this email
+    const query = await instance({
+        url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${normalizedEmail}`,
+        method: 'get'
+    })
+
+    if(query?.data?.results && query.data.results.length) {
+        return res.status(400).json({
+            message: "An account with this email already exists"
+        })
+    } else {
+        bcrypt.genSalt(saltRounds, function(err, salt) {
+            bcrypt.hash(password, salt, function(err, hash) {
+                // Posting to create a new user
+                instance({
+                    url: "api/database/rows/table/941203/?user_field_names=true",
+                    method: 'post',
+                    data: {
+                        "Name": req.body.Name,
+                        "Email": normalizedEmail,
+                        "Role": 5956549,
+                        "Password": hash
+                    }
+                }).then((response) => {
+                    if(response.data) {
+                        return res.sendStatus(200);
+                    } else {
+                        return res.sendStatus(400);
+                    }
+                })
+            });
         });
-    });
+    }
+
 })
 
 app.post('/authenticate', async (req, res) => {
@@ -122,7 +143,7 @@ app.post('/authenticate', async (req, res) => {
         });
     }
 
-    const normalizedEmail = validator.normalizeEmail(email);
+    const normalizedEmail = validator.normalizeEmail(email).toLocaleLowerCase();
 
     const query = await instance({
         url:`api/database/rows/table/941203/?user_field_names=true&&filter__Email__equal=${normalizedEmail}`,
